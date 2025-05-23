@@ -4,7 +4,7 @@ from torch.nn import functional as F
 
 class AttentionHead(nn.Module):
 
-    def __init__(self,head_dim,seq_len,d_embed):
+    def __init__(self,head_dim,seq_len,d_embed,dropout):
 
         super().__init__()
 
@@ -14,6 +14,8 @@ class AttentionHead(nn.Module):
         self.qkv = nn.Linear(d_embed,3*head_dim, bias= False)
 
         self.register_buffer("tril",torch.tril(torch.ones([seq_len,seq_len])))
+
+        self.dropout = nn.Dropout(dropout)
     
 
     def forward(self,x):
@@ -30,6 +32,7 @@ class AttentionHead(nn.Module):
         wei = wei.masked_fill(self.tril[:self.seq_len,:self.seq_len] == 0, float("-inf"))
         # softmax
         wei = F.softmax(wei,dim=-1)
+        wei = self.dropout(wei)
 
         out = wei@v
 
@@ -37,31 +40,91 @@ class AttentionHead(nn.Module):
 
 
 
+class MultiHeadAttention(nn.Module):
+
+    def __init__(self,num_heads,head_dim,seq_len,d_embed,dropout):
+        super().__init__()
+
+        self.heads = nn.ModuleList([AttentionHead(head_dim,seq_len,d_embed,dropout) for _ in range(num_heads)])
+        self.proj = nn.Linear(d_embed,d_embed)
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self,x):
+
+        out = torch.cat([h(x) for h in self.heads],dim =-1 )
+        out = self.proj(out)
+        out = self.dropout(out)
+        return out
+    
+
 class FeedForward(nn.Module):
 
     def __init__(self, d_embd, dropout):
 
         super().__init__()
 
-        self.net = nn.Sequential
-        (
+        self.net = nn.Sequential(
             nn.Linear(d_embd,4*d_embd),
             nn.ReLU(),
             nn.Linear(4*d_embd,d_embd),
             nn.Dropout(dropout)
         )
-
-
-class MultiHeadAttention(nn.Module):
-
-    def __init__(self,num_heads,head_dim,seq_len,d_embed):
-        super().__init__()
-
-        self.heads = nn.ModuleList([AttentionHead(head_dim,seq_len,d_embed) for _ in range(num_heads)])
-        self.proj = nn.Linear(d_embed,d_embed)
     
     def forward(self,x):
 
-        out = torch.cat([ h(x) for h in self.heads],dim =-1 )
-        out = self.proj(out)
-        return out
+        return self.net(x)
+
+class TransformerBlock(nn.Module):
+        
+    def __init__(self, n_head , n_embd , seq_len,dropout):
+
+        super().__init__()
+        head_dim = n_embd // n_head
+        self.sa = MultiHeadAttention(n_head, head_dim,seq_len, n_embd,dropout)
+        self.ffwd = FeedForward(n_embd)
+        self.ln1 = nn.LayerNorm(n_embd)
+        self.ln2 = nn.LayerNorm(n_embd)
+    
+    def forward(self,x):
+
+        x = x + self.sa(self.ln1(x))
+        x = x + self.ffwd(self.ln2(x)) 
+
+        return x
+
+class GPT2(nn.Module):
+
+    def __init__(self, n_blocks ,seq_len,n_embd, n_head,vocab_size,dropout):
+        
+        super().__init__()
+
+        self.seq_len = seq_len
+        self.vocab_size = vocab_size
+
+        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
+        self.position_embedding_table = nn.Embedding(seq_len, n_embd)
+
+        blocks = [TransformerBlock(n_head , n_embd , seq_len,dropout) for _ in range(n_blocks)]
+
+        self.blocks = nn.Sequential(
+            *blocks,
+            nn.LayerNorm(n_embd)
+        )
+
+        self.lm_head = nn.Linear(n_embd , vocab_size)
+
+
+    def forward(self,tokens):
+        
+        B,T = tokens.shape
+
+        token_embeddings = self.token_embedding_table(tokens) # (B,T,C)
+        pos_embd = self.position_embedding_table(torch.arange(T,device=tokens.device))
+        x = token_embeddings + pos_embd
+        x = self.blocks(x)
+        logits  = self.lm_head(x) # (B,T,N_EMBD)
+
+        # logits = logits.view(B*T,self.vocab_size)
+
+        return logits
+
