@@ -131,19 +131,18 @@ def generate(model, input_ids, max_new_tokens=500):
     return input_ids
 
 my_model.eval()
-# Generate text using Hugging Face model
-with torch.no_grad():
-    hf_output = hf_model.generate(input_ids, max_new_tokens=500, do_sample=False)
-hf_text = tokenizer.decode(hf_output[0], skip_special_tokens=True)
-print("\nHugging Face output:")
-print(hf_text)
+# # Generate text using Hugging Face model
+# with torch.no_grad():
+#     hf_output = hf_model.generate(input_ids, max_new_tokens=500, do_sample=False)
+# hf_text = tokenizer.decode(hf_output[0], skip_special_tokens=True)
+# print("\nHugging Face output:")
+# print(hf_text)
 
-# Generate text using custom model
-generated_ids = generate(my_model, input_ids.clone(), max_new_tokens=500)
-generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
-print("\nCustom model output:")
-print(generated_text)
-
-
-
+# # Generate text using custom model
+# generated_ids = generate(my_model, input_ids.clone(), max_new_tokens=500)
+# generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+# print("\nCustom model output:")
+# print(generated_text)
+#
+# torch.save(my_model.state_dict(), "myGPT2_from_pretrained.pth")
 

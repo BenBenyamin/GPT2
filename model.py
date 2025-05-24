@@ -118,7 +118,7 @@ class GPT2(nn.Module):
 
         self.lm_head = nn.Linear(n_embd , vocab_size, bias=False)
 
-        # self.lm_head.weight = self.token_embedding_table.weight
+        self.lm_head.weight = self.token_embedding_table.weight
 
 
     def forward(self,tokens):
