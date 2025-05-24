@@ -11,7 +11,10 @@ class AttentionHead(nn.Module):
         self.head_dim= head_dim
         self.seq_len = seq_len
 
-        self.qkv = nn.Linear(d_embed,3*head_dim, bias= False)
+        self.q = nn.Linear(d_embed,head_dim, bias= True)
+        self.k = nn.Linear(d_embed,head_dim, bias= True)
+        self.v = nn.Linear(d_embed,head_dim, bias= True)
+        
 
         self.register_buffer("tril",torch.tril(torch.ones([seq_len,seq_len])))
 
@@ -20,16 +23,17 @@ class AttentionHead(nn.Module):
 
     def forward(self,x):
 
-        # calculate the qkv values
-        qkv = self.qkv(x)
+        T = x.size(1)
 
-        #split
-        q, k, v = qkv.split(self.head_dim, dim=-1)
+        # calculate the qkv values
+        q = self.q(x)
+        k = self.k(x)
+        v = self.v(x)
 
         # calculate the multiplication
         wei = q@torch.transpose(k,-2,-1) / self.head_dim**0.5
         # mask out future values (-inf after softmax = 0)
-        wei = wei.masked_fill(self.tril[:self.seq_len,:self.seq_len] == 0, float("-inf"))
+        wei = wei.masked_fill(self.tril[:T,:T] == 0, float("-inf"))
         # softmax
         wei = F.softmax(wei,dim=-1)
         wei = self.dropout(wei)
@@ -65,7 +69,7 @@ class FeedForward(nn.Module):
 
         self.net = nn.Sequential(
             nn.Linear(d_embd,4*d_embd),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(4*d_embd,d_embd),
             nn.Dropout(dropout)
         )
@@ -76,12 +80,12 @@ class FeedForward(nn.Module):
 
 class TransformerBlock(nn.Module):
         
-    def __init__(self, n_head , n_embd , seq_len,dropout):
+    def __init__(self, n_head , n_embd , seq_len, dropout):
 
         super().__init__()
         head_dim = n_embd // n_head
         self.sa = MultiHeadAttention(n_head, head_dim,seq_len, n_embd,dropout)
-        self.ffwd = FeedForward(n_embd)
+        self.ffwd = FeedForward(n_embd,dropout)
         self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
     
@@ -108,10 +112,13 @@ class GPT2(nn.Module):
 
         self.blocks = nn.Sequential(
             *blocks,
-            nn.LayerNorm(n_embd)
         )
 
-        self.lm_head = nn.Linear(n_embd , vocab_size)
+        self.final_ln = nn.LayerNorm(n_embd)
+
+        self.lm_head = nn.Linear(n_embd , vocab_size, bias=False)
+
+        # self.lm_head.weight = self.token_embedding_table.weight
 
 
     def forward(self,tokens):
@@ -122,6 +129,7 @@ class GPT2(nn.Module):
         pos_embd = self.position_embedding_table(torch.arange(T,device=tokens.device))
         x = token_embeddings + pos_embd
         x = self.blocks(x)
+        x = self.final_ln(x)
         logits  = self.lm_head(x) # (B,T,N_EMBD)
 
         # logits = logits.view(B*T,self.vocab_size)
