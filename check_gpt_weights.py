@@ -15,13 +15,16 @@ hf_model = GPT2LMHeadModel.from_pretrained('gpt2')
 hf_model.eval()
 hf_state_dict = hf_model.state_dict()
 
+# Load tokenizer
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+
 # Initialize custom model
 my_model = GPT2(
     n_blocks=N_BLOCK,
     seq_len=SEQ_LEN,
     n_embd=N_EMBD,
     n_head=N_HEADS,
-    vocab_size=50257,
+    vocab_size=len(tokenizer),
     dropout=DROPOUT
 )
 my_model.eval()
@@ -36,10 +39,7 @@ my_model.position_embedding_table.weight.data.copy_(
     hf_state_dict['transformer.wpe.weight']
 )
 
-# Copy output projection weights
-# my_model.lm_head.weight.data.copy_(
-#     hf_state_dict['lm_head.weight']
-# )
+# Weight tying
 
 my_model.lm_head.weight = my_model.token_embedding_table.weight
 
@@ -111,38 +111,6 @@ my_model.final_ln.bias.data.copy_(
     hf_state_dict['transformer.ln_f.bias']
 )
 
-# Load tokenizer
-tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
-# Input prompt
-prompt = "Hello GPT2!\n"
-print(f"The prompt is {prompt}")
-input_ids = tokenizer(prompt, return_tensors="pt")["input_ids"]
-
-# Greedy generation loop
-def generate(model, input_ids, max_new_tokens=500):
-    model.eval()
-    for _ in range(max_new_tokens):
-        input_ids_trimmed = input_ids[:, -model.seq_len:]
-        with torch.no_grad():
-            logits = model(input_ids_trimmed)
-            next_token = torch.argmax(logits[:, -1, :], dim=-1, keepdim=True)
-        input_ids = torch.cat([input_ids, next_token], dim=1)
-    return input_ids
-
-my_model.eval()
-# # Generate text using Hugging Face model
-# with torch.no_grad():
-#     hf_output = hf_model.generate(input_ids, max_new_tokens=500, do_sample=False)
-# hf_text = tokenizer.decode(hf_output[0], skip_special_tokens=True)
-# print("\nHugging Face output:")
-# print(hf_text)
-
-# # Generate text using custom model
-# generated_ids = generate(my_model, input_ids.clone(), max_new_tokens=500)
-# generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
-# print("\nCustom model output:")
-# print(generated_text)
-#
 # torch.save(my_model.state_dict(), "myGPT2_from_pretrained.pth")
 

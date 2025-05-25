@@ -8,17 +8,17 @@ import random
 import numpy as np
 
 
-# 1. Set prompt and generation settings
+# Set prompt and generation settings
 prompt = "Explain in simple terms how quantum entanglement works. Use metaphors and examples a 10-year-old could understand."
 max_length = 150
-temperature = 0.5
-top_k = 50
+temperature = 0.7
+top_k = 100
 
-# 2. Load tokenizer
+# Load tokenizer
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
 # -------------------------------------
-# 3. Load Hugging Face official GPT-2
+# Load Hugging Face official GPT-2
 # -------------------------------------
 hf_model = GPT2LMHeadModel.from_pretrained("gpt2").to('cuda')
 hf_model.eval()
@@ -37,7 +37,7 @@ print("\n Hugging Face GPT-2 Output:\n")
 print(tokenizer.decode(hf_output[0], skip_special_tokens=True))
 
 # -------------------------------------
-# 4. Wrap your custom GPT2 model
+# Wrap custom GPT2 model
 # -------------------------------------
 
 # Create a dummy config
@@ -50,12 +50,10 @@ custom_config = GPT2Config(
     vocab_size=50257
 )
 
-# Wrap your custom GPT2 model
 class CustomGPT2Wrapper(GPT2LMHeadModel):
     def __init__(self, config, custom_model):
         super().__init__(config)
         self.transformer = custom_model  # just reusing internal variable name
-        self.lm_head = torch.nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
     def forward(self, input_ids, attention_mask=None, **kwargs):
         logits = self.transformer(input_ids)
@@ -64,7 +62,7 @@ class CustomGPT2Wrapper(GPT2LMHeadModel):
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
         return {"input_ids": input_ids}
 
-# Instantiate your model
+# Instantiate model
 custom_model = CustomGPT2Model(
     n_blocks=12,
     seq_len=1024,
