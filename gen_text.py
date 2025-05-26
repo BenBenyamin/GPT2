@@ -1,4 +1,3 @@
-# let's instead sample manually
 import torch
 from torch.nn import functional as F
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
