@@ -3,19 +3,12 @@ import math
 
 class CosineSchedulerWithWarmup:
 
-    """
-        start_lr (float): The learning rate to reach at the end of warm-up.
-        lr (float): The current learning rate.
-        warmup_steps (int): Number of steps over which to linearly increase LR.
-        total_steps (int): Total number of scheduling steps (warm-up + decay).
-        min_lr (float): The floor learning rate after cosine decay.
-        step_num (int): Counter for how many `step()` calls have been made.
-    """
-    def __init__(self,lr,params,warmup_steps,total_steps,min_lr = None):
 
-        self.optimizer = torch.optim.AdamW(params=params,lr=lr)
+    def __init__(self,lr,named_params,warmup_steps,total_steps,min_lr = None):
+
         self.start_lr = lr
         self.lr = 0.0
+        self._config_optimizer(named_params)
         self.warmup_steps = warmup_steps
         self.total_steps = total_steps
         self.step_num = 0
@@ -26,6 +19,8 @@ class CosineSchedulerWithWarmup:
             self.min_lr = self.start_lr*0.1
         else:
             self.min_lr = min_lr
+
+        
 
     def zero_grad(self):
         self.optimizer.zero_grad()
@@ -53,7 +48,33 @@ class CosineSchedulerWithWarmup:
             )
         
         self.optimizer.step()
-        
+    
+    @property
+    def param_groups(self):
+        return self.optimizer.param_groups
+    
+    def _config_optimizer(self,named_params):
+
+        decay = []
+        no_decay = []
+
+        for name, param in named_params:
+            if not param.requires_grad:
+                continue  # frozen weights
+            if name.endswith(".bias") or "norm" in name.lower():
+                no_decay.append(param)
+            else:
+                decay.append(param)
+
+        self.optimizer = torch.optim.AdamW(
+            [
+                {'params': decay, 'weight_decay': 0.1},
+                {'params': no_decay, 'weight_decay': 0.0}
+            ],
+            lr=self.lr,
+            betas=(0.9, 0.95),
+            eps=1e-8
+        )
        
 
         

@@ -155,4 +155,3 @@ class GPT2(nn.Module):
         # logits = logits.view(B*T,self.vocab_size)
 
         return logits
-
