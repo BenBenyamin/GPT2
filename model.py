@@ -104,6 +104,7 @@ class GPT2(nn.Module):
 
         self.seq_len = seq_len
         self.vocab_size = vocab_size
+        self.n_embd = n_embd
 
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(seq_len, n_embd)
@@ -120,6 +121,18 @@ class GPT2(nn.Module):
 
         self.lm_head.weight = self.token_embedding_table.weight
 
+        self.apply(self._init_weights)
+
+    def _init_weights(self,module):
+        
+        std = 1/self.n_embd**0.5
+        if (isinstance(module,nn.Linear)):
+            torch.nn.init.normal_(module.weight,mean = 0.0, std = std)
+            if (module.bias is not None):
+                torch.nn.init.zeros_(module.bias)
+        
+        elif (isinstance(module,nn.Embedding)):
+            torch.nn.init.normal_(module.weight,mean = 0.0, std = std)
 
     def forward(self,tokens):
         

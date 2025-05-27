@@ -8,12 +8,8 @@ class GPT2Loss(nn.Module):
 
         super().__init__()
     
-    def forward(self,logits,tragets,attention_masks):
+    def forward(self,logits,targets):
 
-        loss = F.cross_entropy(logits.view(-1, logits.size(-1)),tragets.view(-1),reduction='none')
-        mask = attention_masks.view(-1).float()
-
-        loss = mask*loss
-        loss = loss.sum()/mask.sum().clamp_min(1.0) ## Avoid dividing by zero
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)),targets.view(-1) , ignore_index=50256)
 
         return loss
