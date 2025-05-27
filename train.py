@@ -12,17 +12,36 @@ from dataset import FineWebEdu
 from optimizer import CosineSchedulerWithWarmup
 from loss import GPT2Loss
 
+torch.set_float32_matmul_precision('high')
+
+LR = 6e-4
+
 N_EMBD = 768
 N_BLOCK = 12
 N_HEADS = 12
 SEQ_LEN = 1024
 DROPOUT = 0.1
-VOCAB_SIZE = 50257
+VOCAB_SIZE = 50304 # orignal : 50257 ,  more divisible by 2
 HEAD_DIM = N_EMBD // N_HEADS 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-BATCH_SIZE  = 8
+TOKEN_PER_BATCH = 524288
+BATCH_SIZE  = 32
+BATCH_ITER = TOKEN_PER_BATCH // (1024 *BATCH_SIZE)
 EPOCHS = 1
+
+# Load dataset
+train_dataset = FineWebEdu("train", agent_num=1, n_chunks=24//2)
+
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle= True,
+)
+
+LR_WARMUP_STEPS = 375e6 // TOKEN_PER_BATCH
+TOTAL_STEPS = len(train_loader) // BATCH_ITER * EPOCHS
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 model = GPT2(
     n_blocks=N_BLOCK,
@@ -33,17 +52,16 @@ model = GPT2(
     dropout=DROPOUT
 ).to(DEVICE)
 
-# Load dataset
-val_dataset = FineWebEdu("val")
-
-val_loader = DataLoader(
-    val_dataset,
-    batch_size=BATCH_SIZE,
-    shuffle= True,
-)
+model = torch.compile(model)
 
 
-optimizer = torch.optim.AdamW(params=model.parameters(),lr=1e-3)
+# optimizer = torch.optim.AdamW(params=model.parameters(),lr=1e-3)
+optimizer = CosineSchedulerWithWarmup(
+    named_params=model.named_parameters(),
+    lr = LR, 
+    warmup_steps=LR_WARMUP_STEPS,
+    total_steps=TOTAL_STEPS
+    )
 loss_crit = GPT2Loss()
 
 scaler = GradScaler('cuda')
@@ -51,27 +69,36 @@ scaler = GradScaler('cuda')
 for epoch in range(EPOCHS):
 
     model.train()
+    optimizer.zero_grad()
+    acc_loss = 0.0
+    start_time = time.time() *1000
 
-    for batch_idx, (tokens, targets) in enumerate(val_loader):
+    for batch_idx, (tokens, targets) in enumerate(train_loader):
         
-        start_time = time.time() *1000
-
         tokens, targets = tokens.to(DEVICE),  targets.to(DEVICE)
 
         with autocast(device_type='cuda'):
             logits = model(tokens)
-            loss = loss_crit(logits, targets)
+            loss = loss_crit(logits, targets) / BATCH_ITER
 
-        optimizer.zero_grad()
+        acc_loss += loss.item() # remove from comp graph
         scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
 
-        end_time = time.time() *1000
-        elapsed = end_time - start_time
+        #Grad accumulation
+        if ((batch_idx+1)%BATCH_ITER == 0):
+            scaler.unscale_(optimizer)
+            norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
 
-        total_tokens = tokens.numel()  # total number of elements in the tensor
-        tokens_per_sec = total_tokens / (elapsed / 1000)
-
-        print(f"EPOCH {epoch} Batch {batch_idx}/{len(val_loader)} - Loss: {loss.item():.4f} - "
-              f"Step Time: {elapsed:.2f} ms - Tokens/sec: {tokens_per_sec:.2f}")
+            elapsed = (time.time()*1000) - start_time 
+            total_tokens = tokens.numel() *BATCH_ITER
+            tokens_per_sec = total_tokens / (elapsed/1000)
+            print(
+                f"EPOCH {epoch} Batch {(batch_idx+1)//BATCH_ITER}/{len(train_loader)//BATCH_ITER}  "
+                f"Loss: {acc_loss:.4f}  Norm: {norm:.2f}  LR: {optimizer.lr:.4e}  "
+                f"Step Time: {elapsed:.1f} ms  {tokens_per_sec:.0f} tok/s"
+            )
+            start_time = time.time() *1000
+            acc_loss = 0.0
