@@ -12,7 +12,11 @@ from dataset import FineWebEdu
 from optimizer import CosineSchedulerWithWarmup
 from loss import GPT2Loss
 
+from torch.utils.tensorboard import SummaryWriter
+
+writer = SummaryWriter(log_dir="runs/gpt2")
 torch.set_float32_matmul_precision('high')
+
 
 LR = 6e-4
 
@@ -31,12 +35,19 @@ EPOCHS = 1
 
 # Load dataset
 train_dataset = FineWebEdu("train", agent_num=1, n_chunks=24//2)
+val_dataset = FineWebEdu("val")
 
 train_loader = DataLoader(
     train_dataset,
     batch_size=BATCH_SIZE,
     shuffle= True,
 )
+
+val_loader = DataLoader(
+    val_dataset,
+    batch_size=BATCH_SIZE,
+)
+
 
 LR_WARMUP_STEPS = 375e6 // TOKEN_PER_BATCH
 TOTAL_STEPS = len(train_loader) // BATCH_ITER * EPOCHS
@@ -79,7 +90,7 @@ for epoch in range(EPOCHS):
 
         with autocast(device_type='cuda'):
             logits = model(tokens)
-            loss = loss_crit(logits, targets) / BATCH_ITER
+            loss = loss_crit(logits, targets) / BATCH_ITER 
 
         acc_loss += loss.item() # remove from comp graph
         scaler.scale(loss).backward()
@@ -100,5 +111,7 @@ for epoch in range(EPOCHS):
                 f"Loss: {acc_loss:.4f}  Norm: {norm:.2f}  LR: {optimizer.lr:.4e}  "
                 f"Step Time: {elapsed:.1f} ms  {tokens_per_sec:.0f} tok/s"
             )
+            writer.add_scalar("Train Loss",acc_loss,batch_idx*(epoch+1))
+            writer.add_scalar("Tokens/Sec",tokens_per_sec,batch_idx*(epoch+1))
             start_time = time.time() *1000
             acc_loss = 0.0
