@@ -7,7 +7,7 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 
 class FineWebEdu(Dataset):
 
-    def __init__(self,split, agent_num ,n_chunks = None):
+    def __init__(self,split, agent_num = None ,n_chunks = None):
 
         if split == "val" or n_chunks is None:
             
@@ -28,6 +28,8 @@ class FineWebEdu(Dataset):
 
             self.data["input_ids"] = torch.cat(input_ids, dim=0)
             self.data["attention_mask"] = torch.cat(masks,dim=0)
+
+            print(f"Agent {agent_num} has loaded files {agent_num*n_chunks} - {(agent_num+1)*n_chunks -1}")
                 
 
     @property
