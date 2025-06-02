@@ -40,7 +40,9 @@ def log(str):
 
 log(f"Number of agents = {TOTAL_AGENTS}")
 
-
+# -----------------------
+# Model Hyperparameters
+# -----------------------
 LR = 6e-4
 N_EMBD = 768
 N_BLOCK = 12
@@ -49,15 +51,18 @@ SEQ_LEN = 1024
 DROPOUT = 0.1
 VOCAB_SIZE = 50304 # orignal : 50257 ,  more divisible by 2
 HEAD_DIM = N_EMBD // N_HEADS 
-
 TOKEN_PER_BATCH = 524288
 BATCH_SIZE  = 32
 BATCH_ITER = TOKEN_PER_BATCH // (1024 *BATCH_SIZE *TOTAL_AGENTS)
-VAL_LOG_BATCHES = 500
-VAL_N_BATCHES = 500
-LOG_FILE = "generation_log.txt"
 EPOCHS = 4
+# -----------------------
 
+# Logging / generating text
+# -----------------------
+VAL_LOG_BATCHES = 500 # How often to log
+VAL_N_BATCHES = 500 # How many batches to evaluate on
+LOG_FILE = "generation_log.txt"
+# ------------------------
 
 # # Load dataset
 train_dataset = FineWebEdu("train", agent_num=AGENT_NUM, n_chunks=24//TOTAL_AGENTS)
@@ -76,9 +81,11 @@ val_loader = DataLoader(
     pin_memory=True
 )
 
-
+# Optimizer Settings
+# -----------------------
 LR_WARMUP_STEPS = 375e6 // TOKEN_PER_BATCH
 TOTAL_STEPS = len(train_loader) // BATCH_ITER * EPOCHS
+# -----------------------
 
 DEVICE = f'cuda:{AGENT_NUM}' if IS_DDP else 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -91,10 +98,10 @@ model = GPT2(
     dropout=DROPOUT
 ).to(DEVICE)
 
-checkpoint = torch.load("checkpoints/3__checkpoint.pt")
+## Change here to load the checkpoint
+checkpoint = torch.load("checkpoints/2_checkpoint.pt")
 model.load_state_dict(checkpoint['model_state_dict'])
 print(f"Agent {AGENT_NUM} loaded the model")
-
 
 
 if (IS_DDP):
@@ -110,9 +117,13 @@ optimizer = CosineSchedulerWithWarmup(
     total_steps=TOTAL_STEPS
     )
 
+# This is for the cosine scheduler , ignore if not applicable
+# -----------------------
 optimizer.step_num = checkpoint["step"] // BATCH_ITER +1
 optimizer.set_next_lr()
 log(f"Optimizer lr : {optimizer.lr}")
+# -----------------------
+
 
 loss_crit = GPT2Loss()
 val_loss_tracker = ValLossTracker(
@@ -125,7 +136,8 @@ scaler = GradScaler('cuda')
 model.train()
 optimizer.zero_grad()
 
-for epoch in range(3,EPOCHS+1):
+## also be mindful of changing this. In this example I have resumed from epoch 2
+for epoch in range(3,EPOCHS):
 
     acc_loss = 0.0
     start_time = time.time() *1000
@@ -192,7 +204,7 @@ for epoch in range(3,EPOCHS+1):
             epoch=epoch,
             val_loss=val_loss,
             ckpt_dir="checkpoints",
-            prefix=f"{epoch}_"
+            prefix=f"{epoch}"
         )
 
 if IS_DDP:
