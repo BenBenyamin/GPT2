@@ -30,16 +30,6 @@ class AttentionHead(nn.Module):
         k = self.k(x).unsqueeze(1)
         v = self.v(x).unsqueeze(1)
 
-        # calculate the multiplication
-        # wei = q@torch.transpose(k,-2,-1) / self.head_dim**0.5
-        # # mask out future values (-inf after softmax = 0)
-        # wei = wei.masked_fill(self.tril[:T,:T] == 0, float("-inf"))
-        # # softmax
-        # wei = F.softmax(wei,dim=-1)
-        # wei = self.dropout(wei)
-
-        # out = wei@v
-
         ## Flash attention
         attn_mask = self.tril[:T, :T].to(dtype=torch.bool)
         out = F.scaled_dot_product_attention(q, k, v, 

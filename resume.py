@@ -54,11 +54,12 @@ TOKEN_PER_BATCH = 524288
 BATCH_SIZE  = 32
 BATCH_ITER = TOKEN_PER_BATCH // (1024 *BATCH_SIZE *TOTAL_AGENTS)
 VAL_LOG_BATCHES = 500
-VAL_N_BATCHES = 20
+VAL_N_BATCHES = 500
 LOG_FILE = "generation_log.txt"
 EPOCHS = 4
 
-# Load dataset
+
+# # Load dataset
 train_dataset = FineWebEdu("train", agent_num=AGENT_NUM, n_chunks=24//TOTAL_AGENTS)
 val_dataset = FineWebEdu("val")
 
@@ -90,20 +91,29 @@ model = GPT2(
     dropout=DROPOUT
 ).to(DEVICE)
 
+checkpoint = torch.load("checkpoints/3__checkpoint.pt")
+model.load_state_dict(checkpoint['model_state_dict'])
+print(f"Agent {AGENT_NUM} loaded the model")
+
+
+
 if (IS_DDP):
     
     model = DDP(model, device_ids=[AGENT_NUM])
 
 model = torch.compile(model)
 
-
-# optimizer = torch.optim.AdamW(params=model.parameters(),lr=1e-3)
 optimizer = CosineSchedulerWithWarmup(
     named_params=model.named_parameters(),
     lr = LR, 
     warmup_steps=LR_WARMUP_STEPS,
     total_steps=TOTAL_STEPS
     )
+
+optimizer.step_num = checkpoint["step"] // BATCH_ITER +1
+optimizer.set_next_lr()
+log(f"Optimizer lr : {optimizer.lr}")
+
 loss_crit = GPT2Loss()
 val_loss_tracker = ValLossTracker(
     val_loader=val_loader,
@@ -115,7 +125,7 @@ scaler = GradScaler('cuda')
 model.train()
 optimizer.zero_grad()
 
-for epoch in range(EPOCHS):
+for epoch in range(3,EPOCHS+1):
 
     acc_loss = 0.0
     start_time = time.time() *1000
@@ -123,7 +133,6 @@ for epoch in range(EPOCHS):
     for batch_idx, (tokens, targets) in enumerate(train_loader):
         
         step = epoch * len(train_loader) + batch_idx + 1
-
         tokens, targets = tokens.to(DEVICE),  targets.to(DEVICE)
 
         with autocast(device_type='cuda'):
@@ -156,12 +165,13 @@ for epoch in range(EPOCHS):
                 writer.add_scalar("Tokens/Sec",tokens_per_sec,step)
                 writer.add_scalar("Learning Rate", optimizer.lr,step)
             
-                if (batch_idx % VAL_LOG_BATCHES ==0):
+                if ((batch_idx+1) % VAL_LOG_BATCHES ==0):
                     
                     val_loss = val_loss_tracker.get_val_loss(model)
                     writer.add_scalar("Val Loss",val_loss,step)
                     print(f"Val loss : {val_loss:.4f}")
-                    log_text(model, step * SEQ_LEN * BATCH_SIZE * TOTAL_AGENTS, val_loss, LOG_FILE)
+                    if ((batch_idx+1) % 2*VAL_LOG_BATCHES ==0):
+                        log_text(model, step * SEQ_LEN * BATCH_SIZE * TOTAL_AGENTS, val_loss, LOG_FILE)
                     save_checkpoint(
                         model=model,
                         step=step,

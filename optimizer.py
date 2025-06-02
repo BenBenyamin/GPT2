@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import math
 
 class CosineSchedulerWithWarmup:
@@ -35,6 +36,12 @@ class CosineSchedulerWithWarmup:
 
         self.step_num += 1
 
+        self.set_next_lr()
+
+        self.optimizer.step()
+    
+    def set_next_lr(self):
+
         # linear warmup 
         if (self.step_num <= self.warmup_steps):
             self._set_lr(self.start_lr *(self.step_num) / self.warmup_steps)
@@ -46,8 +53,6 @@ class CosineSchedulerWithWarmup:
             self._set_lr(
                 self.min_lr + 0.5*(1.0 + math.cos(math.pi*decay_ratio))*(self.start_lr - self.min_lr)
             )
-        
-        self.optimizer.step()
     
     @property
     def param_groups(self):
@@ -75,41 +80,13 @@ class CosineSchedulerWithWarmup:
             betas=(0.9, 0.95),
             eps=1e-8
         )
-       
-
-        
-### TEST ###
-# import numpy as np
-# import matplotlib.pyplot as plt
 
 
+dummy_param_1 = nn.Parameter(torch.randn(10, 10))
+dummy_param_2 = nn.Parameter(torch.randn(5, 5))
 
-# dummy_param = [torch.nn.Parameter(torch.zeros(1))]
-
-# ###Optimizer
-
-# optimizer = CosineSchedulerWithWarmup(
-#     lr = 6e-4,
-#     params = dummy_param,
-#     warmup_steps=10,
-#     total_steps=50
-# )
-
-# # Generate LR values
-# steps = np.arange(optimizer.total_steps)
-# lrs = []
-
-# for step in range(optimizer.total_steps):
-
-#     lrs.append(optimizer.lr)
-#     optimizer.step()
-
-# lrs = np.array(lrs)
-
-# # Plot
-# plt.figure()
-# plt.plot(steps, lrs)
-# plt.xlabel("Step")
-# plt.ylabel("Learning Rate")
-# plt.title("Warm-up + Cosine Decay Schedule")
-# plt.show()
+# Create dummy named_params
+named_params = [
+    ("linear.weight", dummy_param_1),  # will go to decay group
+    ("norm.bias", dummy_param_2)       # will go to no_decay group
+]
