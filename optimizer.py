@@ -3,10 +3,19 @@ import torch.nn as nn
 import math
 
 class CosineSchedulerWithWarmup:
+    """
+    Implements a learning rate scheduler with linear warmup followed by cosine decay,
+    along with AdamW optimizer configuration separating weight decay.
+    This is based on GPT3 paper (https://arxiv.org/pdf/2005.14165) appendix B.
 
-
-    def __init__(self,lr,named_params,warmup_steps,total_steps,min_lr = None):
-
+    Args:
+        lr (float): Starting learning rate.
+        named_params (list): List of (name, param) pairs for optimizer configuration.
+        warmup_steps (int): Number of steps to linearly increase the learning rate.
+        total_steps (int): Total number of training steps.
+        min_lr (float, optional): Minimum learning rate after decay. Defaults to 10% of start_lr.
+    """
+    def __init__(self, lr, named_params, warmup_steps, total_steps, min_lr=None):
         self.start_lr = lr
         self.lr = 0.0
         self._config_optimizer(named_params)
@@ -16,50 +25,60 @@ class CosineSchedulerWithWarmup:
 
         self._set_lr(0.0)
 
-        if (min_lr == None):
-            self.min_lr = self.start_lr*0.1
-        else:
-            self.min_lr = min_lr
-
-        
+        self.min_lr = min_lr if min_lr is not None else self.start_lr * 0.1
 
     def zero_grad(self):
+        """Zeroes the gradients of all optimized parameters."""
         self.optimizer.zero_grad()
-    
-    def _set_lr(self,lr):
 
+    def _set_lr(self, lr):
+        """
+        Sets learning rate across all parameter groups.
+
+        Args:
+            lr (float): Learning rate to be set.
+        """
         for group in self.optimizer.param_groups:
             group['lr'] = lr
         self.lr = lr
 
     def step(self):
-
+        """
+        Performs one optimization step and updates the learning rate accordingly.
+        """
         self.step_num += 1
-
         self.set_next_lr()
-
         self.optimizer.step()
-    
+
     def set_next_lr(self):
-
-        # linear warmup 
-        if (self.step_num <= self.warmup_steps):
-            self._set_lr(self.start_lr *(self.step_num) / self.warmup_steps)
-        
-        # Cosine decay
-        elif (self.step_num < self.total_steps):
+        """
+        Computes and applies the next learning rate based on linear warmup and cosine decay.
+        """
+        if self.step_num <= self.warmup_steps:
+            self._set_lr(self.start_lr * self.step_num / self.warmup_steps)
+        elif self.step_num < self.total_steps:
             decay_ratio = (self.step_num - self.warmup_steps) / (self.total_steps - self.warmup_steps)
-
             self._set_lr(
-                self.min_lr + 0.5*(1.0 + math.cos(math.pi*decay_ratio))*(self.start_lr - self.min_lr)
+                self.min_lr + 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) * (self.start_lr - self.min_lr)
             )
-    
+
     @property
     def param_groups(self):
-        return self.optimizer.param_groups
-    
-    def _config_optimizer(self,named_params):
+        """
+        Returns parameter groups of the optimizer.
 
+        Returns:
+            list: Parameter groups.
+        """
+        return self.optimizer.param_groups
+
+    def _config_optimizer(self, named_params):
+        """
+        Configures the AdamW optimizer with separate parameter groups for decay and no-decay.
+
+        Args:
+            named_params (list): List of (name, parameter) tuples.
+        """
         decay = []
         no_decay = []
 
@@ -80,13 +99,3 @@ class CosineSchedulerWithWarmup:
             betas=(0.9, 0.95),
             eps=1e-8
         )
-
-
-dummy_param_1 = nn.Parameter(torch.randn(10, 10))
-dummy_param_2 = nn.Parameter(torch.randn(5, 5))
-
-# Create dummy named_params
-named_params = [
-    ("linear.weight", dummy_param_1),  # will go to decay group
-    ("norm.bias", dummy_param_2)       # will go to no_decay group
-]
