@@ -20,7 +20,7 @@ The project was based on the GPT-2 and GPT-3 papers, from which the training met
 | Batch Size           | 524288            |
 | Total Training Time  | ~80 hours         |
 | GPU                  | 2 x NVIDIA A6000  |
-| Best Validation Loss | 2.99              |
+| Final Validation Loss | 2.99              |
 
 Example text generation:
 
