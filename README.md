@@ -2,7 +2,7 @@
 # GPT-2 From Scratch
 
 This repository offers a PyTorch-based implementation of the GPT-2 language model, built entirely from scratch.
-It includes custom modules for attention mechanisms, transformer blocks, loss computation, optimization, and training routines. The model was trained on 40B tokens from the [FineWebEdu-10B Dataset on HuggingFace](https://huggingface.co/datasets/EleutherAI/fineweb).
+It includes custom modules for attention mechanisms, transformer blocks, loss computation, optimization, and training routines. The model was trained on 40B tokens from the [FineWebEdu-10B Dataset on HuggingFace](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu).
 
 ---
 
@@ -99,7 +99,7 @@ python train.py
 
 - [Language Models are Unsupervised Multitask Learners (GPT-2 Paper)](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)  
 - [GPT-3: Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165)  
-- [FineWebEdu-10B Dataset on HuggingFace](https://huggingface.co/datasets/EleutherAI/fineweb)  
+- [FineWebEdu-10B Dataset on HuggingFace](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu)  
 - [FlashAttention: Fast and Memory-Efficient Exact Attention](https://arxiv.org/abs/2205.14135)  
 - [Attention is All You Need (Transformer Paper)](https://arxiv.org/abs/1706.03762)  
 - [Andrej Karpathy’s GPT Tutorial (YouTube)](https://www.youtube.com/watch?v=kCc8FmEb1nY)  
