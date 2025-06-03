@@ -90,12 +90,30 @@ GPT2/
 
 **Training:**
 
+## DDP
+
 ```bash
-python train.py
+torchrun --nproc_per_node=<number of GPUs> --standalone train.py
+```
+
+to resume (please go over `resume.py` first):
+
+```bash
+torchrun --nproc_per_node=<number of GPUs> --standalone resume.py
+```
+
+### Single Node
+
+```bash
+python3 train.py
+```
+
+```bash
+python3 resume.py
 ```
 ---
 
-## References
+### References
 
 - [Language Models are Unsupervised Multitask Learners (GPT-2 Paper)](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)  
 - [GPT-3: Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165)  
